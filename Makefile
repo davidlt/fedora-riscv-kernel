@@ -1,19 +1,15 @@
 ROOT            := $(shell pwd)
 
 # We don't normally use cross-compilation, BUT where it's necessary
-# these lines can be uncommented to cross-compile riscv-linux/vmlinux ONLY.
+# these lines can be uncommented to cross-compile linux/vmlinux ONLY.
 #HOST_TOOLS      := $(ROOT)/../fedora-riscv-bootstrap/host-tools/bin
 #PATH            := $(HOST_TOOLS):$(PATH)
 #export CROSS_COMPILE := riscv64-unknown-linux-gnu-
 
-# Upstream Linux 4.15 has only bare-bones support for RISC-V.  It will
-# boot but you won't be able to use any devices.  It's not expected
-# that we will have full support for this architecture before 4.17.
-# In the meantime we're using the riscv-linux riscv-all branch.
-KERNEL_VERSION   = 4.15.0
+KERNEL_VERSION   = 4.19.0
 
 # The version of Fedora we are building for.
-FEDORA           = 27
+FEDORA           = 29
 
 # NBD server IP address and port or export name.
 NBD              = 192.168.0.220:/
@@ -23,28 +19,28 @@ ROOTFS           = UUID=e06a1845-3577-4e35-92a9-015b3042b3f2
 
 all: vmlinux bbl bbl.u540 RPMS/noarch/kernel-headers-$(KERNEL_VERSION)-1.fc$(FEDORA).noarch.rpm
 
-vmlinux: riscv-linux/vmlinux
+vmlinux: linux/vmlinux
 	cp $^ $@
 
-riscv-linux/vmlinux: riscv-linux/.config
+linux/vmlinux: linux/.config
 	test $$(uname -m) = "riscv64"
-	$(MAKE) -C riscv-linux ARCH=riscv vmlinux
+	$(MAKE) -C linux ARCH=riscv vmlinux
 
 # Kernel command line has to be embedded in the kernel.
 CMDLINE="root=$(ROOTFS) netroot=nbd:$(NBD) rootfstype=ext4 rw rootdelay=5 ip=dhcp rootwait console=ttySI0"
 
-riscv-linux/.config: config riscv-linux/Makefile initramfs.cpio.gz
+linux/.config: config linux/Makefile initramfs.cpio.gz
 	test $$(uname -m) = "riscv64"
-	$(MAKE) -C riscv-linux ARCH=riscv defconfig
+	$(MAKE) -C linux ARCH=riscv defconfig
 	cat config >> $@
 	echo 'CONFIG_CMDLINE_BOOL=y' >> $@
 	echo 'CONFIG_CMDLINE=$(CMDLINE)' >> $@
 	echo 'CONFIG_INITRAMFS_SOURCE="$(ROOT)/initramfs.cpio.gz"' >> $@
-	$(MAKE) -C riscv-linux ARCH=riscv olddefconfig
+	$(MAKE) -C linux ARCH=riscv olddefconfig
 # 'touch' here is necessary because for some reason kbuild doesn't
 # set up dependencies right so that this file is rebuilt if CMDLINE
 # changes
-	touch riscv-linux/drivers/of/fdt.c
+	touch linux/drivers/of/fdt.c
 
 # Note that CONFIG_INITRAMFS_SOURCE requires the initramfs has
 # this exact name.
@@ -98,7 +94,7 @@ RPMS/noarch/kernel-headers-$(KERNEL_VERSION)-1.fc$(FEDORA).noarch.rpm: vmlinux k
 	test $$(uname -m) = "riscv64"
 	rm -rf kernel-headers
 	mkdir -p kernel-headers/usr
-	$(MAKE) -C riscv-linux ARCH=riscv headers_install INSTALL_HDR_PATH=$(ROOT)/kernel-headers/usr
+	$(MAKE) -C linux ARCH=riscv headers_install INSTALL_HDR_PATH=$(ROOT)/kernel-headers/usr
 	rpmbuild -ba kernel-headers.spec --define "_topdir $(ROOT)"
 	rm -r kernel-headers
 
@@ -111,7 +107,7 @@ upload-kernel: bbl.u540 readme.u540.txt
 	scp $^ fedorapeople.org:/project/risc-v/disk-images/hifive-unleashed/
 
 clean:
-	$(MAKE) -C riscv-linux clean
+	$(MAKE) -C linux clean
 	rm -f *~
 	rm -f vmlinux bbl
 
